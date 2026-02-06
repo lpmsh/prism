@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// BETTER-AUTH CORE TABLES
+// ============================================
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  sessions Session[]
+  accounts Account[]
+
+  installations   Installation[]
+  orgMemberships  OrganizationMember[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+// ============================================
+// GITHUB APP INSTALLATION TABLES
+// ============================================
+
+model Installation {
+  id                     String    @id @default(cuid())
+  githubInstallationId   Int       @unique
+  githubAccountId        Int
+  githubAccountLogin     String
+  githubAccountType      String    // "User" or "Organization"
+  githubAccountAvatarUrl String?
+  repositorySelection    String    // "all" or "selected"
+
+  linkedUserId String?
+  linkedUser   User?   @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  suspendedAt DateTime?
+
+  repositories Repository[]
+
+  @@map("installation")
+}
+
+model Repository {
+  id            String  @id @default(cuid())
+  githubRepoId  Int     @unique
+  name          String
+  fullName      String
+  private       Boolean @default(false)
+  defaultBranch String  @default("main")
+
+  installationId String
+  installation   Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("repository")
+}
+
+model Organization {
+  id        String @id @default(cuid())
+  githubOrgId Int  @unique
+  login     String @unique
+  avatarUrl String?
+
+  members OrganizationMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organization")
+}
+
+model OrganizationMember {
+  id             String @id @default(cuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String @default("member")
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, organizationId])
+  @@map("organization_member")
+}

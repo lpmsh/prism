@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { Webhooks } from "@octokit/webhooks";
 import { createAppAuth } from "@octokit/auth-app";
 import {Octokit} from "octokit"
-import { createReviewComment } from "./lib/github.js";
+import { createReviewComment, getInstallationForRepo } from "./lib/github.js";
 import { createOpenCodeSession } from "./lib/daytona.js";
+import { handleInstallationEvent, handleInstallationRepositoriesEvent } from "./lib/installations.js";
 
 const app = new Hono();
 
@@ -68,11 +69,18 @@ app.post("/api/webhooks", async (c) => {
       //   await createReviewComment(c, user, repo, prNumber, "Preview generated successfully!: " + previewUrl);
 
       //   break;
-      case "reopened":
+      case "reopened": {
         const user = payload.pull_request?.head?.repo?.owner?.login
         const repo = payload.pull_request?.head?.repo?.name
 
-        await createReviewComment(c, user, repo, prNumber, "Generating preview...");
+        // Look up installation ID dynamically from DB
+        const installationId = await getInstallationForRepo(user, repo);
+        if (!installationId) {
+          console.error(`No installation found for ${user}/${repo}`);
+          return c.json({ error: "No installation found for this repo" }, 404);
+        }
+
+        await createReviewComment(c, user, repo, prNumber, "Generating preview...", installationId);
 
         const {previewUrl} = await createOpenCodeSession({
           "repoUrl": `https://github.com/${user}/${repo}.git`,
@@ -82,10 +90,19 @@ app.post("/api/webhooks", async (c) => {
           "autoStopInterval": 30,
         })
 
-        await createReviewComment(c, user, repo, prNumber, "Preview generated successfully!: " + previewUrl);
+        await createReviewComment(c, user, repo, prNumber, "Preview generated successfully!: " + previewUrl, installationId);
 
         break;
+      }
     }
+  }
+
+  if (event === "installation") {
+    await handleInstallationEvent(payload);
+  }
+
+  if (event === "installation_repositories") {
+    await handleInstallationRepositoriesEvent(payload);
   }
 
   return c.json({ ok: true, event, deliveryId });
