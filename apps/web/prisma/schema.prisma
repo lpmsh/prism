@@ -1,11 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma/client"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = ""
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  
 }
 
 // ============================================
@@ -13,9 +14,9 @@ datasource db {
 // ============================================
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
+  email         String   @unique
   emailVerified Boolean
   image         String?
   createdAt     DateTime
@@ -24,8 +25,8 @@ model User {
   sessions Session[]
   accounts Account[]
 
-  installations   Installation[]
-  orgMemberships  OrganizationMember[]
+  installations  Installation[]
+  orgMemberships OrganizationMember[]
 
   @@map("user")
 }
@@ -79,13 +80,13 @@ model Verification {
 // ============================================
 
 model Installation {
-  id                     String    @id @default(cuid())
-  githubInstallationId   Int       @unique
+  id                     String  @id @default(cuid())
+  githubInstallationId   Int     @unique
   githubAccountId        Int
   githubAccountLogin     String
-  githubAccountType      String    // "User" or "Organization"
+  githubAccountType      String // "User" or "Organization"
   githubAccountAvatarUrl String?
-  repositorySelection    String    // "all" or "selected"
+  repositorySelection    String // "all" or "selected"
 
   linkedUserId String?
   linkedUser   User?   @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
@@ -117,10 +118,10 @@ model Repository {
 }
 
 model Organization {
-  id        String @id @default(cuid())
-  githubOrgId Int  @unique
-  login     String @unique
-  avatarUrl String?
+  id          String  @id @default(cuid())
+  githubOrgId Int     @unique
+  login       String  @unique
+  avatarUrl   String?
 
   members OrganizationMember[]
 
@@ -131,12 +132,12 @@ model Organization {
 }
 
 model OrganizationMember {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   userId         String
-  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role           String @default("member")
+  role           String       @default("member")
 
   createdAt DateTime @default(now())
 

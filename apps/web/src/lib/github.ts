@@ -1,6 +1,6 @@
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "octokit";
-import { prisma } from "@repo/db";
+import { prisma } from "@/lib/db";
 
 /**
  * Look up the GitHub App installation ID for a given repo from the database.
