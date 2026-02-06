@@ -1,21 +1,49 @@
-import { Hono } from "hono";
-import { Webhooks } from "@octokit/webhooks";
 import { createAppAuth } from "@octokit/auth-app";
-import {Octokit} from "octokit"
-import { Context } from "hono/jsx";
+import { Octokit } from "octokit";
+import { prisma } from "@repo/db";
 
-export async function createReviewComment(c: any, owner: string, repo: string, pullNumber: number, body: string) {
+/**
+ * Look up the GitHub App installation ID for a given repo from the database.
+ */
+export async function getInstallationForRepo(
+  owner: string,
+  repo: string
+): Promise<number | null> {
+  const repository = await prisma.repository.findFirst({
+    where: { fullName: `${owner}/${repo}` },
+    include: { installation: true },
+  });
+
+  if (!repository) return null;
+  if (repository.installation.suspendedAt) return null;
+  return repository.installation.githubInstallationId;
+}
+
+/**
+ * Create a comment on a PR using the GitHub App's installation credentials.
+ * The installationId is now passed explicitly instead of read from env.
+ */
+export async function createReviewComment(
+  c: any,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+  body: string,
+  installationId?: number
+) {
   console.log(owner, repo, pullNumber, body);
-
 
   const appId = process.env.GITHUB_APP_ID;
   const privateKey = process.env.GITHUB_PRIVATE_KEY;
-  const installationId = process.env.GITHUB_INSTALLATION_ID;
 
   if (!appId || !privateKey) {
-    return c.json({
-      error: "Missing GITHUB_APP_ID or GITHUB_PRIVATE_KEY environment variables",
-    }, 500);
+    return c.json(
+      {
+        error:
+          "Missing GITHUB_APP_ID or GITHUB_PRIVATE_KEY environment variables",
+      },
+      500
+    );
   }
 
   const octokit = new Octokit({
@@ -23,14 +51,14 @@ export async function createReviewComment(c: any, owner: string, repo: string, p
     auth: {
       appId: parseInt(appId, 10),
       privateKey: privateKey,
-      ...(installationId && { installationId: parseInt(installationId, 10) }),
+      ...(installationId && { installationId }),
     },
   });
 
   try {
-    const authentication = await octokit.auth({
+    const authentication = (await octokit.auth({
       type: installationId ? "installation" : "app",
-    }) as {
+    })) as {
       type: string;
       appId?: number;
       installationId?: number;
@@ -38,26 +66,16 @@ export async function createReviewComment(c: any, owner: string, repo: string, p
 
     console.log("Authenticated successfully:", authentication.type);
 
-    const { data: appData } = await octokit.request("GET /app");
-
-    if (!appData) {
-      return c.json({
-        error: "Failed to retrieve app data",
-      }, 500);
-    }
-
-    console.log(`Authenticated as GitHub App: ${appData.slug}`);
-
     const { data: comment } = await octokit.rest.issues.createComment({
-      owner: owner,
-      repo: repo,
+      owner,
+      repo,
       issue_number: pullNumber,
-      body: body,
-      // commit_id: "", // Optional for general comments
-      // path: "", // Optional for general comments
+      body,
     });
 
-    console.log(`Created review comment on PR #${pullNumber}: ${comment.id}`);
+    console.log(
+      `Created review comment on PR #${pullNumber}: ${comment.id}`
+    );
 
     return c.json({
       ok: true,
@@ -67,9 +85,11 @@ export async function createReviewComment(c: any, owner: string, repo: string, p
     });
   } catch (error) {
     console.error("Error creating review comment:", error);
-    return c.json({
-      error: "Failed to create review comment",
-    }, 500);
+    return c.json(
+      {
+        error: "Failed to create review comment",
+      },
+      500
+    );
   }
 }
-
