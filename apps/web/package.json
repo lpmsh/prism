@@ -9,8 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@daytonaio/sdk": "^0.138.0",
+    "@octokit/auth-app": "^8.1.2",
+    "@octokit/webhooks": "^14.2.0",
     "@repo/db": "*",
     "better-auth": "^1.2.0",
+    "octokit": "^5.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
